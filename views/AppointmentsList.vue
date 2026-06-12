@@ -48,62 +48,52 @@
 
 <script>
 export default {
-  name: "AppointmentsList",
+  name: "BookAppointment",
   data() {
     return {
-      appointments: []
+      name: "",
+      symptoms: "",
+      selectedSlot: "",
+      slots: []
     };
   },
   mounted() {
-    this.fetchAppointments();
-  },
-  methods: {
-    fetchAppointments() {
-      fetch("https://91y2mgx6o5.execute-api.us-east-1.amazonaws.com/prod/appointments")
+    // Correct URL for fetching slots
+    fetch("https://91y2mgx6o5.execute-api.us-east-1.amazonaws.com/prod/slots")
         .then(res => res.json())
         .then(data => {
-          const parsed = JSON.parse(data.body);
-          this.appointments = parsed;
-        });
-    },
-    updateStatus(appointment, newStatus) {
-      // Log the full appointment object and its ID
-      console.log(" appointment (proxy):", appointment);
-      const cleanAppointment = JSON.parse(JSON.stringify(appointment));
-      console.log(" Clean appointment:", cleanAppointment);
-      console.log("appointmentId:", cleanAppointment.appointmentId);
-      console.log(" appointmentId (direct):", appointment.appointmentId);
+          // Bulletproof parsing: Handles both Proxy and Non-Proxy AWS integrations
+          const parsed = typeof data === 'string' ? JSON.parse(data) : (data.body ? JSON.parse(data.body) : data);
+          this.slots = parsed.filter(s => !s.isBooked).map(s => s.slot);
+        })
+        .catch(err => console.error("Error fetching slots:", err));
+  },
+  methods: {
+    submitAppointment() {
+      const payload = {
+        patientName: this.name,
+        symptoms: this.symptoms,
+        slot: this.selectedSlot
+      };
 
-      const url = `https://e2m2b7y8c9.execute-api.us-east-1.amazonaws.com/prod/appointments/${appointment.appointmentId}`;
-
-      const payload = { status: newStatus };
-
-      fetch(url, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
+      // UPDATED TO YOUR NEW API URL
+      fetch("https://91y2mgx6o5.execute-api.us-east-1.amazonaws.com/prod/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: JSON.stringify(payload) })
       })
-          .then(async res => {
-
-            const rawBody = await res.text();
-
-            if (!res.ok) {
-              throw new Error(`HTTP ${res.status}: ${rawBody}`);
-            }
-
-            return JSON.parse(rawBody);
-          })
+          .then(res => res.json())
           .then(() => {
-            alert("Status updated!");
+            alert("Appointment booked!");
+            this.name = "";
+            this.symptoms = "";
+            this.selectedSlot = "";
           })
           .catch(err => {
-            console.error(" Failed to update status:", err);
-            alert("Update failed. See console for details.");
+            console.error("Error booking appointment:", err);
+            alert("Failed to book appointment.");
           });
     }
-
-     }
+  }
 };
 </script>
