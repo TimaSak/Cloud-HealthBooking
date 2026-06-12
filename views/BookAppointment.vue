@@ -46,43 +46,53 @@ export default {
     };
   },
   mounted() {
-    fetch("https://91y2mgx6o5.execute-api.us-east-1.amazonaws.com/prod/slots")
-        .then(res => res.json())
-        .then(data => {
-          // Bulletproof parsing
-          const parsed = typeof data === 'string' ? JSON.parse(data) : (data.body ? JSON.parse(data.body) : data);
-          this.slots = parsed.filter(s => !s.isBooked).map(s => s.slot);
-        })
-        .catch(err => console.error("Error fetching slots:", err));
+    this.fetchSlots();
   },
   methods: {
+    fetchSlots() {
+      fetch("https://91y2mgx6o5.execute-api.us-east-1.amazonaws.com/prod/slots")
+          .then(res => res.json())
+          .then(data => {
+            const parsed = typeof data === 'string' ? JSON.parse(data) : (data.body ? JSON.parse(data.body) : data);
+            this.slots = parsed.filter(s => !s.isBooked).map(s => s.slot);
+          })
+          .catch(err => console.error("Error fetching slots:", err));
+    },
     submitAppointment() {
+      if (!this.selectedSlot) {
+        alert("Please select a time slot.");
+        return;
+      }
+
       const payload = {
         patientName: this.name,
         symptoms: this.symptoms,
         slot: this.selectedSlot
       };
+
       fetch("https://91y2mgx6o5.execute-api.us-east-1.amazonaws.com/prod/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ body: JSON.stringify(payload) })
       })
-          .then(res => res.json())
+          .then(async res => {
+            // THIS STOPS THE FAKE SUCCESS ALERTS!
+            if (!res.ok) {
+              const text = await res.text();
+              throw new Error(text);
+            }
+            return res.json();
+          })
           .then(() => {
-            alert("Appointment booked!");
+            alert("Appointment booked successfully!");
             this.name = "";
             this.symptoms = "";
             this.selectedSlot = "";
-            fetch("https://91y2mgx6o5.execute-api.us-east-1.amazonaws.com/prod/slots")
-                .then(res => res.json())
-                .then(data => {
-                  const parsed = typeof data === 'string' ? JSON.parse(data) : (data.body ? JSON.parse(data.body) : data);
-                  this.slots = parsed.filter(s => !s.isBooked).map(s => s.slot);
-                });
+            this.fetchSlots(); // Automatically removes the booked slot from the dropdown
           })
           .catch(err => {
             console.error("Error booking appointment:", err);
-            alert("Failed to book appointment.");
+            alert("Failed to book appointment. Check the console for details.");
           });
     }
   }
